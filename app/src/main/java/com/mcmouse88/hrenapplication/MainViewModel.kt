@@ -1,39 +1,60 @@
 package com.mcmouse88.hrenapplication
 
+import android.util.Log
+import androidx.lifecycle.AbstractSavedStateViewModelFactory
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.flow.MutableSharedFlow
+import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.savedstate.SavedStateRegistryOwner
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.lang.IllegalArgumentException
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 
-class MainViewModel(
-    private val noteRepository: NoteRepository
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val noteRepository: NoteRepository,
+    private val handle: SavedStateHandle
 ) : ViewModel() {
 
-    val notesStateFlow = MutableStateFlow<List<Note>>(emptyList())
-    val commands = MutableSharedFlow<Commands>(replay = 0, extraBufferCapacity = 1)
-    val shimmerFlow = MutableStateFlow(true)
+    companion object {
+        private const val KEY = "ttt"
+    }
 
-    init {
+    val title = handle.getStateFlow(KEY, "EMPTY")
+    // val title: LiveData<String> get () = _title
+
+    fun changeStr() {
+        // _title.value = "SAVED"
+        handle[KEY] = "SAVED"
         viewModelScope.launch {
-            try {
-                val list = noteRepository.getPost()
-                notesStateFlow.tryEmit(list)
-            } catch (e: Exception) {
-                when (e) {
-                    is NetworkException -> commands.tryEmit(Commands.ShowSnackbar("Network Error"))
-                    else -> commands.tryEmit(Commands.ShowBottomSheet("Unknown Error"))
-                }
-            }
-            finally {
-                shimmerFlow.tryEmit(false)
-            }
+            noteRepository.longOperation()
         }
     }
 
-    sealed interface Commands {
-        class ShowBottomSheet(val message: String) : Commands
-        class ShowSnackbar(val message: String) : Commands
+    override fun onCleared() {
+        super.onCleared()
+        Log.e("TAG_CHECK", "onCleared")
     }
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+interface AppModule {
+
+    @Binds
+    @Singleton
+    fun bindNoteRepository(impl: NoteRepositoryImpl): NoteRepository
 }
